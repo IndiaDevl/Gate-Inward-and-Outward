@@ -1,0 +1,52 @@
+/* Add these to your existing App.css */
+
+/* SAP Status Styles */
+.status-new {
+  color: #f39c12;
+  font-weight: bold;
+  background-color: #fef5e7;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.status-active {
+  color: #27ae60;
+  font-weight: bold;
+  background-color: #e8f6f3;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.status-completed {
+  color: #3498db;
+  font-weight: bold;
+  background-color: #e8f4fd;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.status-cancelled {
+  color: #e74c3c;
+  font-weight: bold;
+  background-color: #fdedec;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.text-muted {
+  color: #7f8c8d;
+  font-size: 0.875rem;
+}
+
+.btn-danger {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: #c0392b;
+}

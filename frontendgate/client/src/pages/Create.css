@@ -1,0 +1,84 @@
+.create-form-container {
+  background: #fff;
+  padding: 32px 40px;
+  border-radius: 12px;
+  max-width: 520px;
+  margin: 32px auto;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+}
+
+.create-form-container h2 {
+  margin-bottom: 18px;
+  font-size: 1.6rem;
+  color: #222;
+}
+
+.create-form-group {
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.create-form-group label {
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: #444;
+}
+
+.create-form-group input {
+  padding: 8px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border 0.2s;
+}
+
+.create-form-group input:focus {
+  border: 1.5px solid #646cff;
+  outline: none;
+}
+
+.create-form-row {
+  display: flex;
+  gap: 16px;
+}
+
+.create-form-actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 12px;
+}
+
+.create-form-actions button {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: #646cff;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.create-form-actions button:disabled {
+  background: #bbb;
+  cursor: not-allowed;
+}
+
+.create-form-actions button[type="button"] {
+  background: #eee;
+  color: #333;
+  border: 1px solid #bbb;
+}
+
+.create-form-message {
+  margin-bottom: 18px;
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+.create-form-message.error {
+  color: #d32f2f;
+}
+.create-form-message.success {
+  color: #388e3c;
+}

@@ -1,0 +1,44 @@
+/* Add these to your existing CSS */
+
+.check-button {
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.check-button:hover {
+  background-color: #0b7dda;
+}
+
+.check-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.found-documents {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #f0f8ff;
+  border-radius: 4px;
+}
+
+.found-documents p {
+  margin: 0 0 8px 0;
+  font-weight: bold;
+}
+
+.document-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.document-tag {
+  background-color: #e1f5fe;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+}
