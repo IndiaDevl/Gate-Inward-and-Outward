@@ -100,6 +100,10 @@ export const fetchMaterialOutwardByVendorInvoiceNumber = (vendorInvoiceNumber) =
   // Send as query parameter - backend will filter for Indicators='O'
   return api.get(`/header/weightdetails/vendorinvoice?vendorInvoiceNumber=${vendorInvoiceNumber}`);
 };
+//Fetch details based on Vendor Invoice Number
+export const fetchWeightDetailsByVendorInvoiceNumber = (VendorInvoiceNumber) => { 
+  return api.get(`/weightdetails/vendorinvoice/${VendorInvoiceNumber}`);
+};
 
 /**
  * Update only outward completion fields.

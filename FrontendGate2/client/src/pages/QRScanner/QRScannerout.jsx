@@ -1,8 +1,8 @@
 // Version 6 - Create Gate Entry + Material Inward (Weight Document) together
 import React, { useState, useEffect, useRef } from "react";
 import { createHeader, createMaterialInward, fetchNextGateNumber, fetchNextWeightDocNumber, sendEmailNotification,fetchPurchaseOrderByPermitNumber ,
-    updateMaterialInward, // We'll create this to UPDATE existing record
-  fetchMaterialOutwardByVendorInvoiceNumber
+    updateMaterialInward,
+  fetchWeightDetailsByVendorInvoiceNumber
 } from "../../api";
 import { useLocation } from "react-router-dom";
 import jsQR from "jsqr";
@@ -49,6 +49,7 @@ export default function CreateHeader() {
       
       // Weight Bridge fields (NEW)
       WeightDocNumber: "",
+      TareWeight: "",
       GrossWeight: "",
       TruckCapacity: "",
     };
@@ -106,51 +107,13 @@ export default function CreateHeader() {
   };
 
 
-  // Auto-generate GateEntryNumber, WeightDocNumber, and set FiscalYear
+
+  // Only set FiscalYear and fetch PO by permit, do NOT auto-generate numbers
   useEffect(() => {
-    let mounted = true;
-
-    const generateNumbers = async () => {
-      // Only generate if numbers are empty (prevents overwrite after scan)
-      if (header.GateEntryNumber || header.WeightDocNumber) return;
-      try {
-        const year = header.GateEntryDate ? header.GateEntryDate.slice(0, 4) : currentYear;
-
-        // Fetch Gate Entry Number
-        const gateResp = await fetchNextGateNumber(year, series);
-
-        // Fetch Weight Document Number
-        const weightResp = await fetchNextWeightDocNumber(year, 4); // code=4 for inward weight
-
-        if (!mounted) return;
-
-        if (gateResp?.data?.next) {
-          setHeader(h => ({ ...h, GateEntryNumber: gateResp.data.next }));
-        }
-
-        if (weightResp?.data?.next) {
-          setHeader(h => ({ ...h, WeightDocNumber: weightResp.data.next }));
-        }
-      } catch (err) {
-        console.warn('fetchNextNumbers failed, using fallback', err);
-        const year = header.GateEntryDate ? header.GateEntryDate.slice(2, 4) : currentYear.slice(2, 4);
-        const seriesPrefix = series === '2' ? 2 : 'SD';
-        const fallbackGateNumber = `${year}${seriesPrefix}0000001`;
-        const fallbackWeightNumber = `${year}40000001`;
-        setHeader(h => ({
-          ...h,
-          GateEntryNumber: fallbackGateNumber,
-          WeightDocNumber: fallbackWeightNumber
-        }));
-      }
-    };
-
     if (header.GateEntryDate) {
       const year = header.GateEntryDate.slice(0, 4);
       setHeader(prev => ({ ...prev, FiscalYear: year }));
     }
-
-    generateNumbers();
 
     // If PermitNumber is present, fetch PO details and fill PO fields
     const tryFetchPOByPermit = async () => {
@@ -158,7 +121,6 @@ export default function CreateHeader() {
         try {
           const resp = await fetchPurchaseOrderByPermitNumber(header.PermitNumber);
           if (resp.data && resp.data.PurchaseOrder) {
-            // Fill PO Number and PO Qty (first entry)
             setHeader(prev => ({
               ...prev,
               PurchaseOrderNumber: resp.data.PurchaseOrder,
@@ -166,15 +128,39 @@ export default function CreateHeader() {
             }));
           }
         } catch (err) {
-          // Optionally handle error (e.g., PO not found)
           console.warn('No PO found for permit number', header.PermitNumber, err);
         }
       }
     };
     tryFetchPOByPermit();
+  }, [header.GateEntryDate, header.PermitNumber]);
 
-    return () => { mounted = false; };
-  }, [header.GateEntryDate, series, currentYear, header.PermitNumber]);
+  // If VendorInvoiceNumber is present, fetch and fill GateEntryNumber and WeightDocNumber
+  useEffect(() => {
+    const fetchWeightDocByVendorInvoice = async (VendorInvoiceNumber) => {
+      try {
+        const resp = await fetchWeightDetailsByVendorInvoiceNumber(VendorInvoiceNumber);
+        const record = resp.data?.d?.results?.[0];
+        if (record) {
+          setHeader(prev => ({
+            ...prev,
+            GateEntryNumber: record.GateEntryNumber,
+            WeightDocNumber: record.WeightDocNumber,
+            // ...spread other fields if needed
+          }));
+        } else {
+          setError('No record found for this Vendor Invoice Number');
+        }
+      } catch (err) {
+        setError('No record found for this Vendor Invoice Number');
+      }
+    };
+    if (header.VendorInvoiceNumber && header.VendorInvoiceNumber.length > 0) {
+      fetchWeightDocByVendorInvoice(header.VendorInvoiceNumber);
+    }
+  }, [header.VendorInvoiceNumber]);
+
+
 
   // QR Code Scanning Functions (same as before)
   const startCameraScanning = async () => {
@@ -365,6 +351,11 @@ export default function CreateHeader() {
       
       // Auto-clear success message after 5 seconds
       setTimeout(() => setResult(null), 5000);
+      
+      // Fetch weight document by Vendor Invoice Number if present
+      if (parsedData.VendorInvoiceNumber) {
+        fetchWeightDocByVendorInvoice(parsedData.VendorInvoiceNumber);
+      }
       
     } catch (err) {
       console.error('QR parse error:', err);
@@ -602,150 +593,46 @@ export default function CreateHeader() {
     setResult(null);
 
     try {
-      const inbound = header.InwardTime || `${new Date().getHours().toString().padStart(2,'0')}:${new Date().getMinutes().toString().padStart(2,'0')}:${new Date().getSeconds().toString().padStart(2,'0')}`;
-      const outbound = header.OutwardTime || inbound;
+      // Fetch the record to get the UUID/guid
+      const resp = await fetchWeightDetailsByVendorInvoiceNumber(header.VendorInvoiceNumber);
+      // Find the record that matches the WeightDocNumber (if multiple)
+      let record = null;
+      if (header.WeightDocNumber) {
+        record = (resp.data?.d?.results || []).find(r => r.WeightDocNumber === header.WeightDocNumber);
+      }
+      if (!record) {
+        // fallback: just take the first record
+        record = resp.data?.d?.results?.[0];
+      }
+      if (!record) {
+        setError('No record found for this Vendor Invoice Number');
+        setLoading(false);
+        return;
+      }
+      // Use the correct field for UUID/guid (adjust as per SAP response)
+      const uuid = record?.UUID || record?.SAP_UUID;
+      if (!uuid) {
+        setError('Could not find a valid UUID/guid for this record.');
+        console.log('Record data:', record.uuid);
+        setLoading(false);
+        return;
+      }
 
-      // STEP 1: Create Gate Entry
-      const gatePayload = {
-        ...header,
-        GateEntryDate: `${header.GateEntryDate}T00:00:00`,
-        InwardTime: hhmmssToSapDuration(header.InwardTime || inbound),
-        OutwardTime: pageMode === "outward" ? hhmmssToSapDuration(outbound) : (header.OutwardTime ? hhmmssToSapDuration(header.OutwardTime) : null),
-        SAP_CreatedDateTime: nowIso(),
-        FiscalYear: header.FiscalYear || currentYear
+      // Prepare payload for update
+      const updatePayload = {
+        VendorInvoiceNumber: header.VendorInvoiceNumber,
+        TareWeight: header.TareWeight,
+        GrossWeight: header.GrossWeight,
+        NetWeight: header.NetWeight,
+        WeightDocNumber: header.WeightDocNumber,
+        // Add any other fields you want to update
       };
 
-      const transformedGatePayload = transformDataForAPI(gatePayload);
-      
-      // Remove weight-specific fields from gate entry
-      delete transformedGatePayload.WeightDocNumber;
-      delete transformedGatePayload.GrossWeight;
-      delete transformedGatePayload.TruckCapacity;
-      
-      console.debug('Creating Gate Entry:', transformedGatePayload);
-      await createHeader(transformedGatePayload);
-      console.log(`✅ Gate Entry created: ${header.GateEntryNumber}`);
-
-      // STEP 2: Create Material Inward (Weight Document) - ONLY if GrossWeight is provided
-      if (header.GrossWeight && header.GrossWeight.trim() !== '') {
-        const weightPayload = {
-          WeightDocNumber: header.WeightDocNumber,
-          FiscalYear: header.FiscalYear || currentYear,
-          Indicators: 'I',
-          GateEntryNumber: header.GateEntryNumber,
-          GateFiscalYear: header.FiscalYear || currentYear,
-          GateIndicators: 'I',
-          GateEntryDate: `${header.GateEntryDate}T00:00:00`,
-          TruckNumber: header.VehicleNumber,
-          TruckCapacity: header.TruckCapacity || null,
-          PermitNumber: header.PermitNumber || null,
-          GrossWeight: header.GrossWeight,
-          SAP_CreatedDateTime: nowIso(),
-          
-          // Copy PO fields (same as before)
-          PurchaseOrderNumber: header.PurchaseOrderNumber || null,
-          PurchaseOrderNumber2: header.PurchaseOrderNumber2 || null,
-          PurchaseOrderNumber3: header.PurchaseOrderNumber3 || null,
-          PurchaseOrderNumber4: header.PurchaseOrderNumber4 || null,
-          PurchaseOrderNumber5: header.PurchaseOrderNumber5 || null,
-          
-          Material: header.Material || null,
-          Material2: header.Material2 || null,
-          Material3: header.Material3 || null,
-          Material4: header.Material4 || null,
-          Material5: header.Material5 || null,
-          
-          MaterialDescription: header.MaterialDescription || null,
-          MaterialDescription2: header.MaterialDescription2 || null,
-          MaterialDescription3: header.MaterialDescription3 || null,
-          MaterialDescription4: header.MaterialDescription4 || null,
-          MaterialDescription5: header.MaterialDescription5 || null,
-          
-          Vendor: header.Vendor || null,
-          Vendor2: header.Vendor2 || null,
-          Vendor3: header.Vendor3 || null,
-          Vendor4: header.Vendor4 || null,
-          Vendor5: header.Vendor5 || null,
-          
-          VendorName: header.VendorName || null,
-          VendorName2: header.VendorName2 || null,
-          VendorName3: header.VendorName3 || null,
-          VendorName4: header.VendorName4 || null,
-          VendorName5: header.VendorName5 || null,
-          
-          VendorInvoiceNumber: header.VendorInvoiceNumber || null,
-          VendorInvoiceNumber2: header.VendorInvoiceNumber2 || null,
-          VendorInvoiceNumber3: header.VendorInvoiceNumber3 || null,
-          VendorInvoiceNumber4: header.VendorInvoiceNumber4 || null,
-          VendorInvoiceNumber5: header.VendorInvoiceNumber5 || null,
-          
-          VendorInvoiceWeight: header.VendorInvoiceWeight || null,
-          VendorInvoiceWeight2: header.VendorInvoiceWeight2 || null,
-          VendorInvoiceWeight3: header.VendorInvoiceWeight3 || null,
-          VendorInvoiceWeight4: header.VendorInvoiceWeight4 || null,
-          VendorInvoiceWeight5: header.VendorInvoiceWeight5 || null,
-          
-          BalanceQty: header.BalanceQty || null,
-          BalanceQty2: header.BalanceQty2 || null,
-          BalanceQty3: header.BalanceQty3 || null,
-          BalanceQty4: header.BalanceQty4 || null,
-          BalanceQty5: header.BalanceQty5 || null,
-        };
-
-        // Handle VendorInvoiceDate fields
-        for (let i = 1; i <= 5; i++) {
-          const suffix = i === 1 ? '' : String(i);
-          const dateField = `VendorInvoiceDate${suffix}`;
-          if (header[dateField] && header[dateField].length === 10) {
-            weightPayload[dateField] = `${header[dateField]}T00:00:00`;
-          }
-        }
-
-        const transformedWeightPayload = transformDataForAPI(weightPayload);
-        
-        // Remove fields that don't belong to Weight Document entity
-        delete transformedWeightPayload.EWayBill; // ← ADD THIS LINE
-        delete transformedWeightPayload.TransporterCode;
-        delete transformedWeightPayload.TransporterName;
-        delete transformedWeightPayload.DriverName;
-        delete transformedWeightPayload.DriverPhoneNumber;
-        delete transformedWeightPayload.LRGCNumber;
-        delete transformedWeightPayload.PermitNumber;
-        delete transformedWeightPayload.Division;
-        delete transformedWeightPayload.Remarks;
-        delete transformedWeightPayload.SubTransporterName;
-        delete transformedWeightPayload.InwardTime;
-        delete transformedWeightPayload.OutwardTime;
-        delete transformedWeightPayload.VehicleNumber; // Use TruckNumber instead
-        
-        // Remove empty fields
-        Object.keys(transformedWeightPayload).forEach(key => {
-          if (transformedWeightPayload[key] === '' || transformedWeightPayload[key] === null || transformedWeightPayload[key] === undefined) {
-            delete transformedWeightPayload[key];
-          }
-        });
-
-        console.debug('Creating Weight Document:', transformedWeightPayload);
-        await createMaterialInward(transformedWeightPayload);
-        console.log(`✅ Weight Document created: ${header.WeightDocNumber}`);
-        
-        setResult(`✅ Gate Entry (${header.GateEntryNumber}) + Weight Document (${header.WeightDocNumber}) created successfully!`);
-        
-        // Send email notification (non-blocking - don't wait for it)
-        sendEmailNotification({
-          gateEntryNumber: header.GateEntryNumber,
-          weightDocNumber: header.WeightDocNumber,
-          vehicleNumber: header.VehicleNumber,
-          grossWeight: header.GrossWeight,
-          date: header.GateEntryDate
-        }).catch(err => console.warn('Email notification failed:', err));
-      } else {
-        setResult(`✅ Gate Entry (${header.GateEntryNumber}) created successfully!`);
-      }
-      
+      await updateMaterialInward(uuid, updatePayload);
+      setResult(`✅ Weight Document updated for Vendor Invoice Number: ${header.VendorInvoiceNumber}`);
       setTimeout(() => resetForm(), 3000);
     } catch (err) {
-      console.error('Submit error:', err?.response?.data || err);
+      console.error('Update error:', err?.response?.data || err);
       const msg = extractErrorMessage(err);
       setError(msg);
     } finally {
@@ -805,6 +692,19 @@ export default function CreateHeader() {
       }
     }
   }, [header.Remarks]);
+
+
+
+  // Calculate NetWeight automatically
+  useEffect(() => {
+    if (header.GrossWeight && header.TareWeight) {
+      const net = parseFloat(header.GrossWeight) - parseFloat(header.TareWeight);
+      setHeader(prev => ({
+        ...prev,
+        NetWeight: isNaN(net) ? '' : net.toFixed(3),
+      }));
+    }
+  }, [header.GrossWeight, header.TareWeight]);
 
   return (
     <div className="create-header-container">
@@ -1025,6 +925,11 @@ export default function CreateHeader() {
             </div>
 
             <div className="form-group">
+              <label className="form-label">Tare Weight (MT)</label>
+              <input className="form-input" name="TareWeight" value={header.TareWeight} onChange={handleChange} placeholder="30.000" />
+            </div>
+
+            <div className="form-group">
               <label className="form-label">Gross Weight (MT)</label>
               <input className="form-input" name="GrossWeight" value={header.GrossWeight} onChange={handleChange} placeholder="60.000" />
             </div>
@@ -1032,6 +937,11 @@ export default function CreateHeader() {
             <div className="form-group">
               <label className="form-label">Truck Capacity (MT)</label>
               <input className="form-input" name="TruckCapacity" value={header.TruckCapacity} onChange={handleChange} placeholder="50.000" />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Net Weight (MT)</label>
+              <input className="form-input" name="NetWeight" value={header.NetWeight} readOnly style={{ background: '#f0f0f0' }} placeholder="30.000" />
             </div>
 
             <div className="form-group">

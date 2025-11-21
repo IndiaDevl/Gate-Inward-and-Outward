@@ -648,52 +648,6 @@ app.get("/api/header/weightdetails", async (req, res) => {
   }
 });
 
-// GET Material Outward records based Vendor Invoice Number (Indicators='O')
-app.get("/api/header/weightdetails/vendorinvoice", async (req, res) => {
-  try {
-    const VNNumber = req.query.VendorInvoiceNumber || req.query.vendorInvoiceNumber;
-    if (!VNNumber) {
-      return res.status(400).json({ error: "Missing required parameter: VendorInvoiceNumber in server error" });
-    }
-
-    const filter = `$filter=VendorInvoiceNumber eq '${VNNumber}'&$format=json`;
-    const fullUrl = `${SAP_URL2}?${filter}`;
-
-    console.log("[INFO] Fetching SAP Weight Details (Outward) →", fullUrl);
-
-    const response = await axios.get(fullUrl, {
-      auth: { username: SAP_USER2, password: SAP_PASS2 },
-      headers: { Accept: "application/json" },
-      validateStatus: () => true
-    });
-
-    if (response.status >= 400) {
-      console.error("[SAP ERROR]", response.status, response.data);
-      return res.status(response.status).json({
-        error: response.data || `SAP returned status ${response.status}`
-      });
-    }
-
-    const results =
-      response.data?.d?.results || response.data?.value || (response.data?.d ? [response.data.d] : []);
-
-    console.log(`[INFO] SAP returned ${results.length} record(s)`);
-
-    // Filter only Indicators = "O" (Outward)
-    const filteredResults = results.filter((r) => (r.Indicators || "").toUpperCase() === "O");
-
-    return res.json({
-      d: {
-        results: filteredResults
-      }
-    });
-  } catch (error) {
-    console.error("[API ERROR]", error.response?.status, error.response?.data || error.message);
-    return res.status(error.response?.status || 500).json({
-      error: error.response?.data || error.message || "Failed to fetch SAP data"
-    });
-  }
-});
 
 // GET Material Outward records (Indicators='O')
 app.get("/api/header/weightdetails/outward", async (req, res) => {
@@ -742,6 +696,49 @@ app.get("/api/header/weightdetails/outward", async (req, res) => {
   }
 });
 
+// GET Material Outward records by Vendor Invoice Number (Indicators='O')
+app.get("/api/weightdetails/vendorinvoice/:VendorInvoiceNumber", async (req, res) => {
+  try {
+    const vendorInvoiceNumber = req.params.VendorInvoiceNumber;
+    if (!vendorInvoiceNumber) {
+      return res.status(400).json({ error: "Missing required parameter: vendorInvoiceNumber" });
+    }
+
+    const filter = `$filter=VendorInvoiceNumber eq '${vendorInvoiceNumber}'&$format=json`;
+    const fullUrl = `${SAP_URL2}?${filter}`;
+
+    console.log("[INFO] Fetching SAP Weight Details (Outward by VendorInvoiceNumber) →", fullUrl);
+
+    const response = await axios.get(fullUrl, {
+      auth: { username: SAP_USER2, password: SAP_PASS2 },
+      headers: { Accept: "application/json" },
+      validateStatus: () => true
+    });
+
+    if (response.status >= 400) {
+      console.error("[SAP ERROR]", response.status, response.data);
+      return res.status(response.status).json({
+        error: response.data || `SAP returned status ${response.status}`
+      });
+    }
+
+    const results =
+      response.data?.d?.results || response.data?.value || (response.data?.d ? [response.data.d] : []);
+
+    console.log(`[INFO] SAP returned ${results.length} record(s)`);
+
+    // Filter only Indicators = "O" (Outward)
+    const filteredResults = results.filter((r) => (r.Indicators || "").toUpperCase() === "O");
+
+return res.json({ d: { results } });
+  } catch (error) {
+    console.error("[API ERROR]", error.response?.status, error.response?.data || error.message);
+    return res.status(error.response?.status || 500).json({
+      error: error.response?.data || error.message || "Failed to fetch SAP data"
+    });
+  }
+});
+
 
 
 /* PATCH Update Material Inward (for tare weight) */
@@ -761,6 +758,7 @@ app.patch('/api/headers/material/:uuid', async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         'x-csrf-token': token,
+        'If-Match': '*', // to avoid 412 Precondition Failed
         Cookie: cookies,
       },
       validateStatus: status => status < 500
