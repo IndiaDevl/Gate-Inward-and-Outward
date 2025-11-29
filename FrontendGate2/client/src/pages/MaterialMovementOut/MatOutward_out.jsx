@@ -4,6 +4,7 @@ import {
   updateMaterialInward, // We'll create this to UPDATE existing record
   fetchMaterialOutwardByGateNumber, // Fetch existing weight record
   createGoodsIssue,
+  updateOutboundDelivery,
   fetchGateEntryByNumber
 } from '../../api';
 import './MaterialOutHome.css';
@@ -34,7 +35,7 @@ const createInitialState = () => {
     TruckCapacity: '',
     TareWeight: '', // User will enter this
     GrossWeight: '', // From original outward record
-    NetWeght: '', // Calculated
+    NetWeight: '', // Calculated
     DifferenceBT: '',
     
     ToleranceWeight: '',
@@ -82,21 +83,6 @@ export default function MaterialOutwardTareCapture() {
   const [result, setResult] = useState(null);
   const [recordFound, setRecordFound] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm(prev => {
-      const updated = { ...prev, [name]: type === 'checkbox' ? checked : value };
-      
-      // Auto-calculate Net Weight when Tare Weight changes
-      if (name === 'TareWeight' && updated.GrossWeight) {
-        const gross = parseFloat(updated.GrossWeight) || 0;
-        const tare = parseFloat(value) || 0;
-        updated.NetWeght = (gross - tare).toFixed(3);
-      }
-      
-      return updated;
-    });
-  };
 
   const validate = () => {
     const errs = [];
@@ -134,7 +120,7 @@ export default function MaterialOutwardTareCapture() {
       // Calculate Net Weight
       const gross = parseFloat(payload.GrossWeight) || 0;
       const tare = parseFloat(payload.TareWeight) || 0;
-      payload.NetWeght = (gross - tare).toFixed(3);
+      payload.NetWeight = (gross - tare).toFixed(3);
 
       payload.SAP_CreatedDateTime = nowIso();
 
@@ -158,6 +144,21 @@ export default function MaterialOutwardTareCapture() {
     }
   };
 
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setForm(prev => {
+      const updated = { ...prev, [name]: type === 'checkbox' ? checked : value };
+
+      // Always recalculate Net Weight if either GrossWeight or TareWeight changes
+      if (name === 'TareWeight' || name === 'GrossWeight') {
+        const gross = parseFloat(name === 'GrossWeight' ? value : updated.GrossWeight) || 0;
+        const tare = parseFloat(name === 'TareWeight' ? value : updated.TareWeight) || 0;
+        updated.NetWeight = (gross - tare).toFixed(3);
+      }
+
+      return updated;
+    });
+  };
   // When Gate Entry Number changes, fetch existing Material Outward record
   const handleGateEntryChange = async (e) => {
     const { name, value } = e.target;
@@ -213,7 +214,8 @@ export default function MaterialOutwardTareCapture() {
           
           // Keep Tare Weight empty for user to enter
           TareWeight: outwardRecord.TareWeight || '',
-          NetWeght: '',
+          NetWeight: '',
+          
 
           // SD Details
           SalesDocument: outwardRecord.SalesDocument || '',
@@ -224,7 +226,7 @@ export default function MaterialOutwardTareCapture() {
 
           ToleranceWeight: outwardRecord.ToleranceWeight || '',
           ActuallyWeight: outwardRecord.ActuallyWeight || '',
-          OutBouandDelivery: outwardRecord.OutBouandDelivery,
+          OutboundDelivery: outwardRecord.OutboundDelivery,
         }));
 
         setRecordFound(true);
@@ -238,36 +240,80 @@ export default function MaterialOutwardTareCapture() {
     }
   };
   
-  const handleGoodsIssue = async () => {
-    setError(null);
-    setResult(null);
-    setLoading(true);
-    try {
-      // Use OutboundDelivery from form state
-      const deliveryDoc = form.OutBouandDelivery;
-      console.log('Outbound Delivery:', form.OutBouandDelivery);
-      if (!deliveryDoc) {
-        setError('No Outbound Delivery number found.');
-        setLoading(false);
-        return;
-      }
-      const response = await createGoodsIssue({
-        DeliveryDocument: deliveryDoc
-        // Add more fields if needed
-      });
-      setResult('Goods Issue created successfully!');
-    } catch (err) {
-      setError(
-        err?.response?.data?.error?.message?.value ||
-        err?.response?.data?.error ||
-        err.message ||
-        'Failed to create Goods Issue'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  // const handleGoodsIssue = async () => {
+  //   setError(null);
+  //   setResult(null);
+  //   setLoading(true);
+  //   try {
+  //     // Use OutboundDelivery from form state
+  //     const deliveryDoc = form.OutboundDelivery;
+  //     console.log('Outbound Delivery:', form.OutboundDelivery);
+  //     if (!deliveryDoc) {
+  //       setError('No Outbound Delivery number found.');
+  //       setLoading(false);
+  //       return;
+  //     }
+  //     const response = await createGoodsIssue({
+  //       DeliveryDocument: deliveryDoc
+  //       // Add more fields if needed
+  //     });
+  //     setResult('Goods Issue created successfully!');
+  //   } catch (err) {
+  //     setError(
+  //       err?.response?.data?.error?.message?.value ||
+  //       err?.response?.data?.error ||
+  //       err.message ||
+  //       'Failed to create Goods Issue'
+  //     );
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
+const handleGoodsIssue = async () => {
+  setError(null);
+  setResult(null);
+  setLoading(true);
+  try {
+    // Use OutboundDelivery from form state
+    const deliveryDoc = form.OutboundDelivery;
+    const netWeight = form.NetWeight;
+    const itemNumber = "10"; // Replace with actual item number if available
+
+    if (!deliveryDoc) {
+      setError('No Outbound Delivery number found.');
+      setLoading(false);
+      return;
+    }
+    if (!netWeight) {
+      setError('Net Weight is required to update Outbound Delivery.');
+      setLoading(false);
+      return;
+    }
+
+    // 1. Update Outbound Delivery item with Net Weight
+    await updateOutboundDelivery(deliveryDoc, itemNumber, {
+      ActualDeliveryQuantity: netWeight,
+      // ActualDeliveryQtyUnit: 'EA', // Add unit if required by SAP
+    });
+
+    // 2. Create Goods Issue and Billing Document
+    await createGoodsIssue({
+      DeliveryDocument: deliveryDoc
+    });
+
+    setResult('Outbound Delivery updated and Goods Issue + Billing Document created successfully!');
+  } catch (err) {
+    setError(
+      err?.response?.data?.error?.message?.value ||
+      err?.response?.data?.error ||
+      err.message ||
+      'Failed to update Outbound Delivery or create Goods Issue'
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="create-header-container">
@@ -372,17 +418,34 @@ export default function MaterialOutwardTareCapture() {
             </div>
 
             <div className="form-group">
+              <label className="form-label">Net Weight</label>
+              <input
+                type="text"
+                name="NetWeight"
+                value={form.NetWeight}
+                onChange={handleChange}
+                className="form-input"
+                placeholder="Enter Net Weight"
+                disabled={!recordFound}
+                // Remove readOnly & green background
+                style={{
+                  backgroundColor: recordFound ? '#ffffff' : '#f0f0f0'
+                }}
+              />
+            </div>
+
+            {/* <div className="form-group">
               <label className="form-label">Net Weight (Calculated)</label>
               <input
                 type="text"
-                name="NetWeght"
-                value={form.NetWeght}
+                name="NetWeight"
+                value={form.NetWeight}
                 className="form-input"
                 readOnly
                 style={{ backgroundColor: '#fff3e0', fontWeight: 'bold' }}
                 placeholder="Auto-calculated"
               />
-            </div>
+            </div> */}
           </div>
         </section>
 
@@ -482,7 +545,7 @@ export default function MaterialOutwardTareCapture() {
 
       {error && (
         <div className="error-message">
-          <strong>Error:</strong> {error}
+          <strong>Error:</strong> {typeof error === 'object' ? JSON.stringify(error) : error}
         </div>
       )}
 

@@ -125,7 +125,7 @@ export default function Outward() {
     console.log('[DEBUG] Applying Initial Registration data:', regData);
     setHeader(prev => ({
       ...prev,
-      SalesDocument: regData.SalesDocument || prev.SalesDocument,
+      SalesDocument: regData.SalesDocument2 || prev.SalesDocument,
       Customer: regData.Customer || prev.Customer,
       CustomerName: regData.CustomerName || prev.CustomerName,
       Material: regData.Material || prev.Material,
@@ -504,7 +504,7 @@ export default function Outward() {
                     onClick={() => applyInitialRegData(reg)}
                   >
                     <div className="suggestion-main">
-                      <strong>SD: {reg.SalesDocument}</strong>
+                      <strong>SD: {reg.SalesDocument2}</strong>
                       <span className="suggestion-vehicle">{reg.VehicleNumber}</span>
                     </div>
                     <div className="suggestion-details">

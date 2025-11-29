@@ -15,6 +15,10 @@ import MaterialOut_Outward from "./pages/MaterialMovementOut/MatOutward_out.jsx"
 import Outward from "./pages/Gateinmovementin/Outward.jsx";
 import GateOut_Inward from "./pages/GateMovementOut/GateEntryInward_Out.jsx";
 import GateOut_Outward from "./pages/GateMovementOut/GateEntryOutward_Out.jsx";
+import Internal_TransferPosting from "./pages/TransferPosting/emptytruckITP.jsx";
+import Loaded_TransferPosting from "./pages/TransferPosting/loadedtruckITP.jsx";
+import ITPHome from "./pages/TransferPosting/ITPHome.jsx";
+import TruckRegistration from "./pages/TransferPosting/TruckReg.jsx";
 import "./App.css";
 
 // Protected Route Component
@@ -83,6 +87,11 @@ const HomePage = () => {
             <h3>QR Scanner Outward</h3>
             <p>Outward</p>
             <Link to="/home/qrscanner/outward" className="card-link">QR Scanner Outward</Link>
+          </div>
+          <div className="card">
+            <h3>Internal Transfer Posting</h3>
+            <p>ITP Details</p>
+            <Link to="/home/transferposting" className="card-link">Internal Transfer Posting</Link>
           </div>
         </div>
       </main>
@@ -171,6 +180,10 @@ export default function App() {
         <Route path="/home/gateout_outward" element={<ProtectedRoute allowedRoles={["sd", "admin"]}><GateOut_Outward /></ProtectedRoute>} />
         <Route path="/home/qrscanner/inward" element={<ProtectedRoute allowedRoles={["mm", "admin"]}><QRScannerInward /></ProtectedRoute>} />
         <Route path="/home/qrscanner/outward" element={<ProtectedRoute allowedRoles={["mm", "admin"]}><QRScannerInwardOut /></ProtectedRoute>} />
+        <Route path="/home/transferposting/itp" element={<ProtectedRoute allowedRoles={["sd", "admin"]}><Internal_TransferPosting /></ProtectedRoute>} />
+        <Route path="/home/transferposting/loadeditp" element={<ProtectedRoute allowedRoles={["sd", "admin"]}><Loaded_TransferPosting /></ProtectedRoute>} />
+        <Route path="/home/transferposting" element={<ProtectedRoute allowedRoles={["sd", "admin"]}><ITPHome /></ProtectedRoute>} />
+        <Route path="/home/truckregistration" element={<ProtectedRoute allowedRoles={["admin","sd"]}><TruckRegistration /></ProtectedRoute>} />
       </Routes>
     </Router>
   );

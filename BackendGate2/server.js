@@ -1,10 +1,9 @@
-
-//require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const cookie = require('cookie');
 const nodemailer = require('nodemailer');
+const PDFDocument = require('pdfkit');
 
 const app = express();
 app.use(express.json());
@@ -29,8 +28,9 @@ const SAP_BASE_PO = 'https://my430243-api.s4hana.cloud.sap/sap/opu/odata4/sap/ap
 const SAP_BASE_SO = 'https://my430243-api.s4hana.cloud.sap/sap/opu/odata/sap/API_SALES_ORDER_SRV';
 const SAP_BASE_OBD ='https://my430243-api.s4hana.cloud.sap/sap/opu/odata/sap/API_OUTBOUND_DELIVERY_SRV;v=0002'
 const SAP_BASE_BILLING = 'https://my430243-api.s4hana.cloud.sap/sap/opu/odata4/sap/api_billingdocument/srvd_a2x/sap/billingdocument/0001/';
-const SAP_USER_ST = 'BTPDEV_INTEGRATION';
-const SAP_PASS_ST = 'ZEQd}vfWrz]QRPg-rhn=>n7CM4Xtz@5R&D%J>aZ{';
+const SAP_BASE_BILLING_PDF = 'https://my430243-api.s4hana.cloud.sap/sap/opu/odata/sap/API_BILLING_DOCUMENT_SRV';
+const SAP_USER_ST = 'BTPDEV_INTEGRATION4';
+const SAP_PASS_ST = 'Fq3imbvLy-EdchaDM@wKt<jjH&]T]AU8CzMNsM\\4';
 
 
 if (!SAP_BASE || !SAP_USER || !SAP_PASS) {
@@ -97,6 +97,13 @@ const sapAxiosBilling = axios.create({
   auth: { 
     username: SAP_USER_ST, 
     password: SAP_PASS_ST 
+  }
+});
+const sapAxiosBillingPDF = axios.create({
+  baseURL: SAP_BASE_BILLING_PDF,
+  auth: {
+    username: SAP_USER_ST,
+    password: SAP_PASS_ST
   }
 });
 /* ---------- Utility helpers ---------- */
@@ -400,6 +407,8 @@ app.get('/api/headers/:id', async (req, res) => {
   }
 });
 
+
+
 /* GET items for a header */
 app.get('/api/headers/:id/items', async (req, res) => {
   const id = req.params.id;
@@ -521,7 +530,134 @@ app.patch('/api/headers/:id', async (req, res) => {
     res.status(err?.response?.status || 500).json({ error: err?.response?.data || err?.message });
   }
 });
+// Internal transfer posting PDF generation for header
+// app.post('/api/headers/:id/pdf', async (req, res) => {
+//   const id = req.params.id;
+//   try {
+//     // Fetch the header data from SAP
+//     const resp = await sapAxios.get(`/YY1_GATEINWARD_OUTWARDDETA(guid'${id}')?$format=json`);
+//     const data = resp.data?.d || resp.data;
 
+//     // Create PDF
+//     const doc = new PDFDocument();
+//     res.setHeader('Content-disposition', 'attachment; filename="header.pdf"');
+//     res.setHeader('Content-type', 'application/pdf');
+//     doc.fontSize(18).text('Gate Entry Header Details', { underline: true });
+//     doc.moveDown();
+
+//     // Add fields (customize as needed)
+//     Object.entries(data).forEach(([key, value]) => {
+//       doc.fontSize(12).text(`${key}: ${value}`);
+//     });
+
+//     doc.end();
+//     doc.pipe(res);
+//   } catch (err) {
+//     console.error('PDF generation error:', err);
+//     res.status(500).json({ error: 'Failed to generate PDF' });
+//   }
+// });
+
+// app.post('/api/headers/:id/pdf', async (req, res) => {
+//   const id = req.params.id;
+//   try {
+//     // Fetch the header data from SAP
+//     const resp = await sapAxios.get(`/YY1_GATEINWARD_OUTWARDDETA(guid'${id}')?$format=json`);
+//     const data = resp.data?.d || resp.data;
+
+//     // Only select the fields you want
+//     const fields = [
+//       { label: "Gate Entry Number", value: data.GateEntryNumber },
+//       { label: "Gate Entry Date", value: (data.GateEntryDate || '').slice(0, 10) },
+//       { label: "Vehicle Number", value: data.VehicleNumber },
+//       { label: "Transporter Name", value: data.TransporterName },
+//       { label: "Driver Name", value: data.DriverName },
+//       { label: "Gross Weight", value: data.GrossWeight },
+//       { label: "Tare Weight", value: data.TareWeight },
+//       { label: "Net Weight", value: data.NetWeight },
+//       { label: "Outward Time", value: data.OutwardTime },
+//       { label: "Remarks", value: data.Remarks },
+//       // Add/remove fields as needed
+//     ];
+
+//     const doc = new PDFDocument({ margin: 40 });
+//     res.setHeader('Content-disposition', 'attachment; filename="header.pdf"');
+//     res.setHeader('Content-type', 'application/pdf');
+//     doc.fontSize(18).text('Gate Entry Header Details', { underline: true, align: 'center' });
+//     doc.moveDown(1.5);
+
+//     fields.forEach(({ label, value }) => {
+//       doc.font('Helvetica-Bold').fontSize(12).text(`${label}:`, { continued: true, width: 180 });
+//       doc.font('Helvetica').fontSize(12).text(` ${value ?? ''}`);
+//       doc.moveDown(0.5);
+//     });
+
+//     doc.end();
+//     doc.pipe(res);
+//   } catch (err) {
+//     console.error('PDF generation error:', err);
+//     res.status(500).json({ error: 'Failed to generate PDF' });
+//   }
+// });
+app.post('/api/headers/:id/pdf', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const resp = await sapAxios.get(`/YY1_GATEINWARD_OUTWARDDETA(guid'${id}')?$format=json`);
+    const data = resp.data?.d || resp.data;
+
+    const fields = [
+      { label: "Internal Transfer Posting Entry", value: data.GateEntryNumber },
+      { label: "Internal Transfer Posting Date", value: (data.GateEntryDate || '').slice(0, 10) },
+      { label: "Vehicle Number", value: data.VehicleNumber },
+      { label: "Transporter Name", value: data.TransporterName },
+      { label: "Driver Name", value: data.DriverName },
+      { label: "Gross Weight", value: data.GrossWeight },
+      { label: "Tare Weight", value: data.TareWeight },
+      { label: "Net Weight", value: data.NetWeight },
+      { label: "Outward Time", value: data.OutwardTime },
+      { label: "Remarks", value: data.Remarks },
+    ];
+
+    const doc = new PDFDocument({ margin: 40 });
+    res.setHeader('Content-disposition', 'attachment; filename="header.pdf"');
+    res.setHeader('Content-type', 'application/pdf');
+    doc.pipe(res); // <-- Pipe before writing content!
+
+    // Draw border rectangle
+    const pageWidth = doc.page.width;
+    const pageHeight = doc.page.height;
+    const borderMargin = 20;
+    doc.rect(borderMargin, borderMargin, pageWidth - 2 * borderMargin, pageHeight - 2 * borderMargin).stroke();
+
+    // Title
+    doc.fontSize(20).font('Helvetica-Bold').text('Truck Internal Transfer Posting Details', {
+      align: 'center',
+      underline: true
+    });
+    doc.moveDown(1.5);
+
+    // Draw a line under the title
+    doc.moveTo(borderMargin + 10, 80).lineTo(pageWidth - borderMargin - 10, 80).stroke();
+
+    // Content
+    let y = 100;
+    fields.forEach(({ label, value }) => {
+      doc.font('Helvetica-Bold').fontSize(13).text(`${label}:`, borderMargin + 30, y, { continued: true });
+      doc.font('Helvetica').fontSize(13).text(` ${value ?? ''}`);
+      y += 28;
+      // Optional: draw a light line between fields
+      doc.moveTo(borderMargin + 25, y - 6).lineTo(pageWidth - borderMargin - 25, y - 6).dash(1, { space: 2 }).stroke().undash();
+    });
+
+    // Footer (optional)
+    doc.fontSize(10).fillColor('gray').text('Generated by Truck Internal Transfer Posting System', borderMargin, pageHeight - borderMargin - 10, { align: 'center' });
+
+    doc.end(); // <-- End after all content is written
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    res.status(500).json({ error: 'Failed to generate PDF' });
+  }
+});
 /* POST create item under existing header */
 app.post('/api/headers/:id/items', async (req, res) => {
   const id = req.params.id;
@@ -772,6 +908,54 @@ app.patch('/api/headers/material/:uuid', async (req, res) => {
   }
 });
 
+
+
+// Example: PATCH /api/headers/material/:docNumber
+app.patch('/api/headers/material/obd/:docNumber', async (req, res) => {
+  const docNumber = req.params.docNumber;
+  const updateFields = sanitizePayloadForSapServerSide(req.body);
+  try {
+    // 1. Fetch the record by WeightDocNumber to get the UUID
+    const getResp = await sapAxiosWeight.get(`/YY1_CAPTURINGWEIGHTDETAILS?$filter=WeightDocNumber eq '${docNumber}'&$format=json`);
+    const results = getResp.data?.d?.results || [];
+    if (!results.length) return res.status(404).json({ error: 'Record not found' });
+    const uuid = results[0].SAP_UUID || results[0].UUID || results[0].Guid || results[0].GUID;
+    if (!uuid) return res.status(400).json({ error: 'UUID not found for this record' });
+
+
+    // 2. Fetch the full record, merge, and PATCH using the UUID
+    const fullResp = await sapAxiosWeight.get(`/YY1_CAPTURINGWEIGHTDETAILS(guid'${uuid}')?$format=json`);
+    const existing = fullResp.data?.d || fullResp.data;
+    const merged = { ...existing, ...updateFields };
+    delete merged.__metadata;
+    delete merged.__proto__;
+
+    // Ensure WeightDocNumber is always the original docNumber (max 10 chars, not UUID)
+    if (typeof merged.WeightDocNumber === 'string' && merged.WeightDocNumber.length > 10) {
+      merged.WeightDocNumber = docNumber;
+    }
+
+    const { token, cookies } = await fetchCsrfTokenWeight();
+    const path = `/YY1_CAPTURINGWEIGHTDETAILS(guid'${uuid}')`;
+
+    const resp = await sapAxiosWeight.patch(path, merged, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': token,
+        'If-Match': '*',
+        Cookie: cookies,
+      },
+      validateStatus: status => status < 500
+    });
+
+    if (resp.status === 204) return res.status(204).send();
+    res.status(resp.status).json(resp.data);
+  } catch (err) {
+    console.error('PATCH Material Inward error', err?.response?.status, err?.response?.data || err?.message);
+    res.status(err?.response?.status || 500).json({ error: err?.response?.data || err?.message });
+  }
+});
+
 // Initial Registration POST
 app.post('/api/initial-registration', async (req, res) => {
   try {
@@ -821,6 +1005,65 @@ app.get('/api/initial-registrations', async (req, res) => {
     const resp = await sapAxiosInitialRegistration.get(path);
 
     // Normalize OData V2 shape
+    const d = resp.data?.d || {};
+    const results = Array.isArray(d.results) ? d.results : (Array.isArray(resp.data?.value) ? resp.data.value : []);
+    const count = d.__count != null ? Number(d.__count) : results.length;
+
+    return res.json({ d: { __count: count, results } });
+  } catch (err) {
+    console.error('GET Initial Registrations error', err?.response?.status, err?.response?.data || err?.message);
+    res.status(err?.response?.status || 500).json({ error: err?.response?.data || err?.message });
+  }
+});
+
+/* GET Initial Registration list with multiple vehicle number filter */
+app.get('/api/truck-registrations', async (req, res) => {
+  try {
+    const top = Math.min(parseInt(req.query.top, 10) || 50, 200);
+    const search = (req.query.search || '').trim();
+    const vehicleNumbers = (req.query.vehicleNumbers || '').trim(); // comma-separated: "1,2,3"
+    const wantCount = String(req.query.count || 'false').toLowerCase() === 'true';
+
+    let filterConditions = [];
+
+    // General search
+    if (search) {
+      const s = search.replace(/'/g, "''");
+      const clauses = [
+        `substringof('${s}',SalesDocument)`,
+        `substringof('${s}',VehicleNumber)`,
+        `substringof('${s}',Transporter)`,
+        `substringof('${s}',SAP_Description)`
+      ];
+      filterConditions.push(`(${clauses.join(' or ')})`);
+    }
+
+    // Multiple Vehicle Numbers filter (OR condition)
+    if (vehicleNumbers) {
+      const vnArray = vehicleNumbers.split(',').map(vn => vn.trim()).filter(vn => vn);
+      if (vnArray.length > 0) {
+        const vehicleConditions = vnArray.map(vn => {
+          const cleanVn = vn.replace(/'/g, "''");
+          return `substringof('${cleanVn}',VehicleNumber)`; // Contains any of the numbers
+          // OR use exact match: `VehicleNumber eq '${cleanVn}'`
+        });
+        filterConditions.push(`(${vehicleConditions.join(' or ')})`);
+      }
+    }
+
+    let path = `/YY1_INITIALREGISTRATION?$format=json&$top=${top}`;
+    
+    if (filterConditions.length > 0) {
+      const filterExpr = filterConditions.join(' and ');
+      path += `&$filter=${encodeURIComponent(filterExpr)}`;
+    }
+    
+    if (wantCount) path += `&$inlinecount=allpages`;
+
+    console.log('[DEBUG] Query path:', path);
+
+    const resp = await sapAxiosInitialRegistration.get(path);
+
     const d = resp.data?.d || {};
     const results = Array.isArray(d.results) ? d.results : (Array.isArray(resp.data?.value) ? resp.data.value : []);
     const count = d.__count != null ? Number(d.__count) : results.length;
@@ -1367,6 +1610,38 @@ async function fetchCsrfTokenGoodsIssue() {
   }
 }
 
+// PATCH Outbound Delivery Item
+app.patch('/api/outbounddelivery/:deliveryDocument/items/:itemNumber', async (req, res) => {
+  const deliveryDocument = req.params.deliveryDocument;
+  const itemNumber = req.params.itemNumber;
+  const { ActualDeliveryQuantity, ActualDeliveryQtyUnit } = req.body;
+  if (!ActualDeliveryQuantity) {
+    return res.status(400).json({ error: "ActualDeliveryQuantity is required" });
+  }
+  try {
+    const { token, cookies } = await fetchCsrfTokenOutboundDelivery();
+    // PATCH to the item entity
+    const path = `/A_OutbDeliveryItem(DeliveryDocument='${deliveryDocument}',DeliveryDocumentItem='${itemNumber}')`;
+    const payload = {
+      ActualDeliveryQuantity: ActualDeliveryQuantity
+    };
+    if (ActualDeliveryQtyUnit) payload.ActualDeliveryQtyUnit = ActualDeliveryQtyUnit;
+    const resp = await sapAxiosOBD.patch(path, payload, {
+      headers: {
+        'Content-Type': 'application/json', 
+        'x-csrf-token': token,
+        'If-Match': '*',
+        Cookie: cookies
+      },
+      validateStatus: status => status < 500
+    });
+    if (resp.status === 204) return res.status(204).send();
+    res.status(resp.status).json(resp.data);
+  } catch (err) {
+    console.error('Outbound Delivery Item PATCH error', err?.response?.status, err?.response?.data || err.message);
+    res.status(err?.response?.status || 500).json({ error: err?.response?.data || err?.message || 'Failed to update outbound delivery item' });
+  }
+});
 // app.post('/api/goodsissue', async (req, res) => {
 //   try {
 //     const deliveryDocument = req.body.DeliveryDocument; // Assuming the body has { "DeliveryDocument": "80000007" }
@@ -1422,7 +1697,7 @@ app.post('/api/goodsissue-and-invoice', async (req, res) => {
       const billingPayload = {
         "_Control": {
           "DefaultBillingDocumentType": "F2",
-          "AutomPostingToAcctgIsDisabled": true
+          "AutomPostingToAcctgIsDisabled": false,
         },
         "_Reference": [
           {
@@ -1440,13 +1715,68 @@ app.post('/api/goodsissue-and-invoice', async (req, res) => {
           Cookie: cookies
         }
       });
-      return res.status(billingResp.status).json(billingResp.data);
+
+      if (billingResp.status === 201 || billingResp.status === 200) {
+        const billingDocNumber = billingResp.data?.BillingDocument || (Array.isArray(billingResp.data?.value) && billingResp.data.value.length > 0 ? billingResp.data.value[0].BillingDocument : undefined);
+        console.log('Billing Document Number:', billingDocNumber);
+        if (!billingDocNumber) {
+          console.error('Billing document number is missing in response:', billingResp.data);
+          return res.status(500).json({
+            error: 'Billing document number is missing in SAP response',
+            details: billingResp.data
+          });
+        }
+        console.log(`✅ Billing document ${billingDocNumber} created`);
+
+        // Wait for SAP to process the document
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        // Download PDF
+        try {
+          const pdfUrl = `/GetPDF?BillingDocument='${billingDocNumber}'`;
+          const pdfResponse = await sapAxiosBillingPDF.get(pdfUrl, {
+            headers: {
+//              'Accept': 'application/pdf',
+              'x-csrf-token': token,
+              'Cookie': cookies
+            },
+            responseType: 'stream',
+            timeout: 30000
+          });
+
+          // Set response for PDF download
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="Billing_${billingDocNumber}.pdf"`);
+
+          // Stream PDF to client
+          pdfResponse.data.pipe(res);
+
+          console.log(`📄 PDF for ${billingDocNumber} downloaded automatically`);
+        } catch (pdfError) {
+          console.error(`PDF download failed for ${billingDocNumber}:`, pdfError.message);
+          // Fallback: Return JSON response without PDF, only include serializable error info
+          res.status(201).json({
+            success: true,
+            billingDocument: billingDocNumber,
+            message: 'Billing created but PDF download failed',
+            error: typeof pdfError?.response?.data === 'string' ? pdfError.response.data : pdfError?.message || 'PDF download failed'
+          });
+        }
+      } else {
+        return res.status(billingResp.status).json({ error: 'Billing creation failed', details: billingResp.data });
+      }
     } else {
       return res.status(goodsIssueResp.status).json({ error: 'Goods issue failed', details: goodsIssueResp.data });
     }
   } catch (err) {
-    console.error('Goods Issue + Invoice error', err?.response?.status, err?.response?.data || err.message);
-    res.status(err?.response?.status || 500).json({ error: err?.response?.data || err?.message });
+    // Only log serializable error info
+    const status = err?.response?.status;
+    const data = err?.response?.data;
+    const message = err?.message;
+    console.error('Goods Issue + Invoice error', status, message, data);
+res.status(status || 500).json({
+  error: message
+});
   }
 });
 

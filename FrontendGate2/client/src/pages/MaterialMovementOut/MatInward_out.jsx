@@ -47,7 +47,7 @@ const createInitialState = () => {
     TruckCapacity: '',
     TareWeight: '', // User will enter this
     GrossWeight: '', // This will come from the original record
-    NetWeght: '', // This will be calculated
+    NetWeight: '', // This will be calculated
     DifferenceBT: '',
     
     VendorInvoiceNumber: '',
@@ -134,7 +134,7 @@ export default function MaterialInwardOut() {
       if (name === 'TareWeight' && updated.GrossWeight) {
         const gross = parseFloat(updated.GrossWeight) || 0;
         const tare = parseFloat(value) || 0;
-        updated.NetWeght = (gross - tare).toFixed(3);
+        updated.NetWeight = (gross - tare).toFixed(3);
       }
       
       return updated;
@@ -176,7 +176,7 @@ export default function MaterialInwardOut() {
       // Calculate Net Weight
       const gross = parseFloat(payload.GrossWeight) || 0;
       const tare = parseFloat(payload.TareWeight) || 0;
-      payload.NetWeght = (gross - tare).toFixed(3);
+      payload.NetWeight = (gross - tare).toFixed(3);
 
       payload.SAP_CreatedDateTime = nowIso();
 
@@ -261,7 +261,7 @@ export default function MaterialInwardOut() {
           
           // Keep Tare Weight empty for user to enter
           TareWeight: '',
-          NetWeght: '',
+          NetWeight: '',
 
           // PO Details
           PurchaseOrderNumber: inwardRecord.PurchaseOrderNumber || '',
@@ -429,8 +429,8 @@ export default function MaterialInwardOut() {
               <label className="form-label">Net Weight (Calculated)</label>
               <input
                 type="text"
-                name="NetWeght"
-                value={form.NetWeght}
+                name="NetWeight"
+                value={form.NetWeight}
                 className="form-input"
                 readOnly
                 style={{ backgroundColor: '#fff3e0', fontWeight: 'bold' }}

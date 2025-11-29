@@ -8,7 +8,7 @@ export default function InitialRegistration() {
 
   // Always initialize all fields as string or number (never undefined/null)
   const initialFormState = {
-    SalesDocument: "",
+    SalesDocument2: "",
     ExpectedQty: "",
     VehicleNumber: "",
     Transporter: "",
@@ -43,7 +43,7 @@ export default function InitialRegistration() {
 
   // SO Suggestion handler
   useEffect(() => {
-    const val = (formData.SalesDocument || "").trim();
+    const val = (formData.SalesDocument2 || "").trim();
     if (val.length < 2) {
       setSoSuggestions([]);
       setShowSoSuggestions(false);
@@ -59,7 +59,7 @@ export default function InitialRegistration() {
       })
       .catch(() => setSoSuggestions([]));
     return () => { ignore = true; };
-  }, [formData.SalesDocument]);
+  }, [formData.SalesDocument2]);
 
   // Hide suggestions on outside click
   useEffect(() => {
@@ -163,15 +163,15 @@ export default function InitialRegistration() {
 
   return (
     <div className="create-header-container initial-reg-wrapper">
-      <h2>Initial Registration</h2>
+      <h2 className="initial-reg-title">Initial Registration</h2>
       <form onSubmit={handleSubmit} className="create-header-form">
         <div className="form-row-2col">
           <div className="form-group" ref={soInputRef} style={{ position: "relative" }}>
             <label>Sales Document</label>
             <input
               type="text"
-              name="SalesDocument"
-              value={formData.SalesDocument || ""}
+              name="SalesDocument2"
+              value={formData.SalesDocument2 || ""}
               onChange={handleChange}
               autoComplete="off"
               required
@@ -181,31 +181,35 @@ export default function InitialRegistration() {
             />
             {showSoSuggestions && soSuggestions.length > 0 && (
               <ul className="so-suggestion-list">
-                {soSuggestions.map((s, i) => (
-                  <li
-                    key={s.SalesDocument || s.SalesOrder || i}
-                    onClick={() => {
-                      setFormData(f => ({
-                        ...f,
-                        SalesDocument: s.SalesDocument || s.SalesOrder || "",
-                        Customer: s.Customer || "",
-                        CustomerName: s.CustomerName || "",
-                        Material: (s.Material && s.items[0]?.Material) || "",
-                        MaterialDescription: (s.MaterialDescription && s.items[0]?.MaterialDescription) || "",
-                        // Add more fields as needed
-                      }));
-                      setShowSoSuggestions(false);
-                    }}
-                  >
-                    <div>
-                      <strong>{s.SalesDocument || s.SalesOrder}</strong>
-                      {s.Customer && <span style={{marginLeft:8}}>Customer: {s.Customer}</span>}
-                      {s.CustomerName && <span style={{marginLeft:8}}>Name: {s.CustomerName}</span>}
-                      {s.items && s.items[0]?.Material && <span style={{marginLeft:8}}>Material: {s.items[0].Material}</span>}
-                      {s.items && s.items[0]?.MaterialDescription && <span style={{marginLeft:8}}>Desc: {s.items[0].MaterialDescription}</span>}
-                    </div>
-                  </li>
-                ))}
+                {soSuggestions.map((s, i) => {
+                  const soNumber = s.SalesDocument2 || s.SalesOrder || s.SalesDocument || "N/A";
+                  const material = s.Material || (s.items && s.items[0]?.Material) || "";
+                  const materialDesc = s.MaterialDescription || (s.items && s.items[0]?.MaterialDescription) || "";
+                  return (
+                    <li
+                      key={soNumber + "_" + i}
+                      onClick={() => {
+                        setFormData(f => ({
+                          ...f,
+                          SalesDocument2: soNumber,
+                          Customer: s.Customer || "",
+                          CustomerName: s.CustomerName || "",
+                          Material: material,
+                          MaterialDescription: materialDesc,
+                        }));
+                        setShowSoSuggestions(false);
+                      }}
+                    >
+                      <div>
+                        <strong>SalesDoc: {soNumber}</strong>
+                        {s.Customer && <span style={{marginLeft:8}}>Customer: {s.Customer}</span>}
+                        {s.CustomerName && <span style={{marginLeft:8}}>Name: {s.CustomerName}</span>}
+                        {material && <span style={{marginLeft:8}}>Material: {material}</span>}
+                        {materialDesc && <span style={{marginLeft:8}}>Desc: {materialDesc}</span>}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -315,8 +319,8 @@ export default function InitialRegistration() {
               </thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={r.SAP_UUID || r.SalesDocument || i}>
-                    <td>{r.SalesDocument || "-"}</td>
+                  <tr key={r.SAP_UUID || r.SalesDocument2 || i}>
+                    <td>{r.SalesDocument2 || "-"}</td>
                     <td>{r.ExpectedQty || "-"}</td>
                     <td>{r.VehicleNumber || "-"}</td>
                     <td>{r.Transporter || "-"}</td>

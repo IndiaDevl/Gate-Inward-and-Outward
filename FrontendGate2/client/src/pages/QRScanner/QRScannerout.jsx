@@ -777,7 +777,7 @@ export default function CreateHeader() {
           📷 Scan QR with Camera
         </button>
 
-        <button 
+        {/* <button 
           type="button"
           onClick={() => { setShowQRScanner(true); setQrMode('upload'); setTimeout(() => fileInputRef.current?.click(), 100); }}
           style={{
@@ -796,7 +796,7 @@ export default function CreateHeader() {
           }}
         >
           📤 Upload QR Image
-        </button>
+        </button> */}
       </div>
 
       {/* QR Scanner Modal */}

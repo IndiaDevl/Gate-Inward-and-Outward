@@ -1,5 +1,4 @@
 import axios from 'axios';
-
 export const API_BASE = 'http://localhost:4200/api';
 //export const API_BASE = 'https://gateentry.cfapps.ap21.hana.ondemand.com/api';
 
@@ -72,6 +71,9 @@ export const fetchGateEntryByNumber = (gateEntryNumber) => {
   return api.get(`/headers?${filter}`);
 };
 
+export const updateHeaderByUUID = (uuid, data) =>
+  api.patch(`/headers/${uuid}`, data);
+
 // Fetch Material Inward by Gate Entry Number
 // USE THE CORRECT ENDPOINT - singular "header" not "headers"
 export const fetchMaterialInwardByGateNumber = (gateEntryNumber) => {
@@ -88,6 +90,13 @@ export function updateMaterialInward(uuid, payload) {
   delete cleanPayload.SAP_UUID;
   return api.patch(`/headers/material/${uuid}`, cleanPayload);
 }
+export function updateobdMaterialOutward(uuid, payload) {
+  // Clean UI-only fields
+  const cleanPayload = { ...payload };
+  delete cleanPayload._docType;
+  delete cleanPayload.SAP_UUID;
+  return api.patch(`/headers/material/obd/${uuid}`, cleanPayload);
+} 
 
 // Fetch Material Outward by Gate Entry Number (Indicators='O')
 export const fetchMaterialOutwardByGateNumber = (gateEntryNumber) => {
@@ -95,11 +104,7 @@ export const fetchMaterialOutwardByGateNumber = (gateEntryNumber) => {
   return api.get(`/header/weightdetails/outward?gateEntryNumber=${gateEntryNumber}`);
 };
 
-//Fetch Material Outward by Vendor Invoice Number (Indicators='O')
-export const fetchMaterialOutwardByVendorInvoiceNumber = (vendorInvoiceNumber) => {
-  // Send as query parameter - backend will filter for Indicators='O'
-  return api.get(`/header/weightdetails/vendorinvoice?vendorInvoiceNumber=${vendorInvoiceNumber}`);
-};
+
 //Fetch details based on Vendor Invoice Number
 export const fetchWeightDetailsByVendorInvoiceNumber = (VendorInvoiceNumber) => { 
   return api.get(`/weightdetails/vendorinvoice/${VendorInvoiceNumber}`);
@@ -126,6 +131,11 @@ export function updateGateEntryOutward(uuid, payloadExtras = {}) {
   };
   return api.patch(`/headers/${uuid}`, body);
 }
+
+export function ITPPDFGenerate(id, payload) {
+  return api.post(`/headers/${id}/pdf`, payload, { responseType: 'blob' });
+}
+
 export function initialRegistration(payload) { 
   return api.post('/initial-registration', payload); 
 }
@@ -139,6 +149,16 @@ export function fetchInitialRegistrations(params = {}) {
   if (params.count != null) searchParams.set('count', String(!!params.count));
   const qs = searchParams.toString();
   return api.get(`/initial-registrations${qs ? `?${qs}` : ''}`);
+}
+
+export function fetchTruckRegistrations(params = {}) {
+  // params: { top?: number, search?: string, count?: boolean }
+  const searchParams = new URLSearchParams();
+  if (params.top) searchParams.set('top', String(params.top));
+  if (params.search) searchParams.set('search', params.search);
+  if (params.count != null) searchParams.set('count', String(!!params.count));
+  const qs = searchParams.toString();
+  return api.get(`/truck-registrations${qs ? `?${qs}` : ''}`);
 }
 
 // Add PATCH to update Initial Registration (e.g., change Status)
@@ -173,6 +193,10 @@ export function fetchSalesOrderByNumber(soNumber) {
 
 export function createOutboundDelivery(payload) {
   return api.post('/outbounddelivery', payload);
+}
+
+export function updateOutboundDelivery(deliveryDocument, itemNumber, payload) {
+  return api.patch(`/outbounddelivery/${deliveryDocument}/items/${itemNumber}`, payload);
 }
 
 export function createGoodsIssue(payload) {

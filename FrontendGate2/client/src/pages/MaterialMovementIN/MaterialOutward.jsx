@@ -5,6 +5,8 @@ import {
   fetchNextWeightDocNumber,
   fetchGateEntryByNumber,
   fetchSalesOrderByNumber,
+  updateMaterialInward,
+  updateobdMaterialOutward,
   fetchSalesOrderSuggestions
 } from '../../api';
 import './MaterialINHome';
@@ -27,6 +29,7 @@ const createInitialState = () => {
     GateEntryNumber: '',
     GateFiscalYear: new Date().getFullYear().toString(),
     GateIndicators: 'O',
+    OutboundDelivery: '',
 
     // SD-first minimal outward fields
     SalesDocument: '',
@@ -176,6 +179,16 @@ export default function MaterialOutward() {
               // Try to get Outbound Delivery number from response
               let outboundNumber = obdResp?.data?.d?.DeliveryDocument || obdResp?.data?.DeliveryDocument || obdResp?.data?.d?.DeliveryNumber || obdResp?.data?.DeliveryNumber || 'Success';
               successMsg += ` | Outbound Delivery created: ${outboundNumber}`;
+
+              // Update OutboundDelivery in Weightbridge
+              if (outboundNumber && returnedWeightDocNumber) {
+                try {
+                  await updateobdMaterialOutward(returnedWeightDocNumber, { OutboundDelivery: outboundNumber });
+                  successMsg += ` | Outbound Delivery updated in Weightbridge: ${outboundNumber}`;
+                } catch (patchErr) {
+                  successMsg += ` | Outbound Delivery created but failed to update Weightbridge: ${patchErr.message}`;
+                }
+              }
             } catch (err) {
               let errorMsg = err?.response?.data?.error?.message?.value 
                 || err?.response?.data?.error 

@@ -19,11 +19,14 @@
     "axios": "^1.13.2",
     "cookie": "^1.0.2",
     "cors": "^2.8.5",
+    "events": "^3.3.0",
     "express": "^5.1.0",
     "nodemailer": "^7.0.10",
+    "pdfkit": "^0.17.2",
     "react": "^19.2.0",
     "react-dom": "^19.1.1",
-    "react-router-dom": "^7.9.5"
+    "react-router-dom": "^7.9.5",
+    "serialport": "^13.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
